@@ -37,7 +37,7 @@ public class Interface extends Application {
 
 		Button btn = new Button("Create");
 		gridpane1.add(btn, 0, 8);
-
+//HEY
 		TextField teamname = new TextField("");
 		teamname.setPromptText("Team");
 		gridpane1.add(teamname, 0, 0);
