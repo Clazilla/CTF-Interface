@@ -2,7 +2,7 @@ package ctf_interface;
 
 import java.io.*;
 import java.nio.file.*;
-import java.util.*;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.json.*;
@@ -20,16 +20,26 @@ public class Interface extends Application {
 
 	private ListView<String> listview; // making this one private global for the update function
 	private static Path save_dir;
-	
+	private static Path match_dir;
+
 	public static void main(String[] args) {
 		// Doing this before platform launch to ensure 'save_dir' 
 		// is initialized and created at any point in the program
 		
 		// Getting the path to the save folder (relative to the folder the program runs in)
-		save_dir = Paths.get("save");
+		save_dir = Paths.get("team");
+		match_dir = Paths.get("match");
 		if(!Files.exists(save_dir)) {
 			try {
 				Files.createDirectory(save_dir); // Create the directory if it doesn't exist
+			} catch (IOException e) {
+				e.printStackTrace(); // Catch eventual IO Errors
+				// IO = In and Output (Creating a file / disk writing [Output])
+			}
+		}
+		if(!Files.exists(match_dir)) {
+			try {
+				Files.createDirectory(match_dir); // Create the directory if it doesn't exist
 			} catch (IOException e) {
 				e.printStackTrace(); // Catch eventual IO Errors
 				// IO = In and Output (Creating a file / disk writing [Output])
@@ -117,8 +127,8 @@ public class Interface extends Application {
 				// Holder object for the json array and just put the name
 				// in it for additional safety
 				JSONObject json_holder_obj = new JSONObject();
-				json_holder_obj.put("team_name", team_name); // put team name
-				json_holder_obj.put("player", player_in_team_json_array); // put player list
+				json_holder_obj.put("name", team_name); // put team name
+				json_holder_obj.put("players", player_in_team_json_array); // put player list
 				
 				// Create buffered writer and write to disk
 				BufferedWriter json_writer = Files.newBufferedWriter(path_to_team_file);
@@ -146,25 +156,104 @@ public class Interface extends Application {
 		update();
 		
 		gridpane.add(listview, 1, 0);
-
+		
 		// THIRD COLUMN
-		Label team1 = new Label("TEAM1");
 		GridPane gridpane3 = new GridPane();
-		gridpane3.add(team1, 2, 0);
+
+		// Creating both earlier because we need them simultaneously
+		Button team1 = new Button("TEAM1"); // Button is better I guess?
+		Button team2 = new Button("TEAM2"); // Button is better I guess?
+
+		team1.setOnAction(event -> {
+			// set the name to the selected team name from the list
+			
+			// Check if it is the first item (----- Team -----) [we don't want that, it isn't a team]
+			if(listview.getSelectionModel().getSelectedIndex() < 1) return; // so return in that case
+			String selected_name = listview.getSelectionModel().getSelectedItem(); // get the selected text
+			
+			// The same team can not play against each other
+			if(selected_name.equals(team2.getText())) return; // In case both team names are the same, return
+			
+			if(!selected_name.isEmpty()) // Check if it is empty
+				team1.setText(selected_name); // If it is not empty the text will be set
+		});
+		gridpane3.add(team1, 0, 0);
 
 		Label vs = new Label("VS");
-		gridpane3.add(vs, 3, 0);
+		gridpane3.add(vs, 1, 0);
 		vs.setAlignment(Pos.CENTER);
 		vs.setPrefWidth(40);
 		
-		Label team2 = new Label("TEAM2");
-		gridpane3.add(team2, 4, 0);
-		team2.setPrefSize(80, 20);
+		gridpane3.add(team2, 2, 0);
+		team2.setOnAction(event -> {
+			// set the name to the selected team name from the list
+			
+			// Check if it is the first item (----- Team -----) [we don't want that, it isn't a team]
+			if(listview.getSelectionModel().getSelectedIndex() < 1) return; // so return in that case
+			String selected_name = listview.getSelectionModel().getSelectedItem(); // get the selected text
+			
+			// The same team can not play against each other
+			if(selected_name.equals(team1.getText())) return; // In case both team names are the same, return
+			
+			if(!selected_name.isEmpty()) // Check if it is empty
+				team2.setText(selected_name); // If it is not empty the text will be set
+		});
 
+		Button match_create = new Button("Create match");
+		match_create.setOnAction(event -> {
+			try {
+				// Getting the file path
+				Path team1_path = Paths.get(save_dir.toString(), team1.getText() + ".json");
+				if(!Files.exists(team1_path)) return; // return if file doesn't exist
+				byte[] team1_data = Files.readAllBytes(team1_path); // Reading the bytes of the file
+				JSONObject team1_json = new JSONObject(new String(team1_data)); // Making a json object of the raw data
+				
+				// Same thing for team 2
+				Path team2_path = Paths.get(save_dir.toString(), team2.getText() + ".json");
+				if(!Files.exists(team2_path)) return; // return if file doesn't exist
+				byte[] team2_data = Files.readAllBytes(team2_path); // Reading the bytes of the file
+				JSONObject team2_json = new JSONObject(new String(team2_data)); // Making a json object of the raw data
+
+				JSONObject holder_obj = new JSONObject(); // creating a holder object
+				holder_obj.put("1", team1_json); // Put the first team on place 1
+				holder_obj.put("2", team2_json); // Put the second team on place 2
+				
+				// Get the path to the match file
+				Path path_to_match_file = Paths.get(match_dir.toString(), team1.getText() + " vs " + team2.getText() + ".json");
+				if(Files.exists(path_to_match_file)) { // Check if file exists
+					// show an error dialog if so
+					Alert alert = new Alert(AlertType.WARNING);
+					alert.setTitle("Failed");
+					alert.setHeaderText("Match already exists!");
+					alert.setContentText("No match created!");
+					alert.show();
+					return; // returning because of error
+				}
+				// Creating file
+				Files.createFile(path_to_match_file);
+				
+				// Create buffered writer and write to disk
+				BufferedWriter match_file_writer = Files.newBufferedWriter(path_to_match_file);
+				holder_obj.write(match_file_writer); // Writes into buffer! (Memory)
+				match_file_writer.close(); // Flushes output stream! (flushes to disk and frees resources)
+				
+				// Show an information dialog to confirm to the user that the match was created
+				Alert alert = new Alert(AlertType.INFORMATION);
+				alert.setTitle("Success");
+				alert.setHeaderText("Match has been created!");
+				alert.setContentText("Match: " + path_to_match_file.getFileName().toString());
+				alert.show();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		});
+		gridpane3.add(match_create, 0, 1, 2, 1);
+		gridpane3.setVgap(15);
+		gridpane3.setHgap(15);
+		
 		gridpane.add(gridpane3, 2, 0);
 		gridpane.setVgap(15);
 		gridpane.setHgap(15);
-		
 		primaryStage.show();
 
 	}
