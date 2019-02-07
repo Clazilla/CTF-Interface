@@ -3,3 +3,4 @@
 /bin/
 *.class
 /json-20180813.jar
+*.json
