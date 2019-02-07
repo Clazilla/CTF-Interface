@@ -2,11 +2,13 @@ package ctf_interface;
 
 import java.io.*;
 import java.nio.file.*;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Stream;
 
 import org.json.*;
 
 import javafx.application.Application;
+import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -16,7 +18,23 @@ import javafx.stage.Stage;
 
 public class Interface extends Application {
 
+	private ListView<String> listview; // making this one private global for the update function
+	private static Path save_dir;
+	
 	public static void main(String[] args) {
+		// Doing this before platform launch to ensure 'save_dir' 
+		// is initialized and created at any point in the program
+		
+		// Getting the path to the save folder (relative to the folder the program runs in)
+		save_dir = Paths.get("save");
+		if(!Files.exists(save_dir)) {
+			try {
+				Files.createDirectory(save_dir); // Create the directory if it doesn't exist
+			} catch (IOException e) {
+				e.printStackTrace(); // Catch eventual IO Errors
+				// IO = In and Output (Creating a file / disk writing [Output])
+			}
+		}
 		launch(args);
 	}
 
@@ -42,9 +60,13 @@ public class Interface extends Application {
 		Button btn = new Button("Create");
 		gridpane1.add(btn, 0, 8);
 
-		TextField teamname = new TextField("");
+		TextField teamname = new TextField();
 		teamname.setPromptText("Team");
+		teamname.setPrefHeight(50);
+		
 		gridpane1.add(teamname, 0, 0);
+		gridpane1.setVgap(10);
+		gridpane1.setHgap(10);
 
 		btn.setOnAction(event -> {
 			// Get the text of the textfield
@@ -70,8 +92,8 @@ public class Interface extends Application {
 				return; // going back if the dialog was skipped or the button pressed is ButtonType.CANCEL
 			
 			try {
-				// Getting the path
-				Path path_to_team_file = Paths.get(team_name + ".json");
+				// Getting the path (using save_dir as base path)
+				Path path_to_team_file = Paths.get(save_dir.toString(), team_name + ".json");
 				// creating the file if it doesn't exist
 				if(!Files.exists(path_to_team_file))Files.createFile(path_to_team_file);
 				else {
@@ -103,13 +125,14 @@ public class Interface extends Application {
 				json_holder_obj.write(json_writer); // Writes into buffer! (Memory)
 				json_writer.close(); // Flushes output stream! (flushes to disk and frees resources)
 				
-				// Show and information dialog to confirm to the user that the team was created
+				// Show an information dialog to confirm to the user that the team was created
 				alert = new Alert(AlertType.INFORMATION);
 				alert.setTitle("Success");
 				alert.setHeaderText("Team has been created!");
 				alert.setContentText("Team: " + team_name);
 				alert.show();
 				
+				update(); // Triggering the update for the team list
 			} catch (IOException e) {
 				e.printStackTrace(); // Catch eventual IO Errors
 				// IO = In and Output (Writing to disk is done via Outputstream)
@@ -119,10 +142,10 @@ public class Interface extends Application {
 		gridpane.add(gridpane1, 0, 0);
 
 		// SECOND COLUMN
-		TableView<String> tableview = new TableView<String>();
-		GridPane gridpane2 = new GridPane();
-		gridpane2.add(tableview, 1, 0);
-		gridpane.add(gridpane2, 1, 0);
+		listview = new ListView<String>();
+		update();
+		
+		gridpane.add(listview, 1, 0);
 
 		// THIRD COLUMN
 		Label team1 = new Label("TEAM1");
@@ -139,7 +162,35 @@ public class Interface extends Application {
 		team2.setPrefSize(80, 20);
 
 		gridpane.add(gridpane3, 2, 0);
+		gridpane.setVgap(15);
+		gridpane.setHgap(15);
+		
 		primaryStage.show();
 
+	}
+	
+	private void update() {
+		ObservableList<String> list_items = listview.getItems(); // getting list of items in the table
+		list_items.clear(); // Clearing the list
+		list_items.add("----- TEAMS -----"); // adding teams banner
+		
+		try {
+			Stream<Path> files_in_folder = Files.list(save_dir);
+			files_in_folder.filter(file -> { // filters the list with the following check
+				// Checked for each element in the stream
+				// returns whether the path is a json file (ends with '.json')
+				return file.toString().endsWith(".json");
+			}).forEach(file -> { // for each loop in lambda over the filtered list
+				// This code will be executed for each element
+				String file_name = file.getFileName().toString(); // getting the file name
+				list_items.add(file_name.replace(".json", "")); 
+				// adding the team name to the table view
+				// while removing '.json' suffix 
+			});
+			files_in_folder.close();
+		} catch (IOException e) {
+			e.printStackTrace(); // Catch eventual IO Errors
+			// IO = In and Output (Reading from the directory [Input])
+		}
 	}
 }
